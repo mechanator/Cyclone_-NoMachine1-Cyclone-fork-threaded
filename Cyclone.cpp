@@ -294,7 +294,7 @@ static void computeHash160BatchBinSingle(int numKeys, uint8_t pubKeys[][33], uin
 
 //------------------------------------------------------------------------------
 static void printUsage(const char *programName) {
-    std::cerr << "Usage: " << programName << " -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex>] -b <prefix_length> [-R | -S]\n";
+    std::cerr << "Usage: " << programName << " -t <number_of_threads> -h <hash160_hex> [-p <puzzle> | -r <startHex:endHex>] -b <prefix_length> [-R | -S] \n";
     std::cerr << "  -R : Use random mode (default is sequential)\n";
     std::cerr << "  -S : Use sequential mode\n";
 }
@@ -338,7 +338,7 @@ std::string generatePartialMatchInfo(const std::string& privateKeyHex, const std
 }
 
 // Function to print status block and partial match information
-static void printStatsBlock(int numCPUs, const std::string &targetHash160Hex,
+static void printStatsBlock(int maxt, int numCPUs, const std::string &targetHash160Hex,
                             const std::string &rangeStr, double mkeysPerSec,
                             unsigned long long totalChecked, double elapsedTime,
                             int puzzle, bool randomMode, const std::string& partialMatchInfo = "") {
@@ -354,6 +354,7 @@ static void printStatsBlock(int numCPUs, const std::string &targetHash160Hex,
     std::cout << "Range         : " << rangeStr << "\n";
     std::cout << "Target Hash160: " << targetHash160Hex << "\n";
     std::cout << "CPU Threads   : " << numCPUs << "\n";
+	std::cout << "Alloc Threads : " << maxt << "\n";
     std::cout << "Mkeys/s       : " << std::fixed << std::setprecision(2) << mkeysPerSec << "\n";
     std::cout << "Total Checked : " << totalChecked << "\n";
     std::cout << "Elapsed Time  : " << formatElapsedTime(elapsedTime) << "\n";
@@ -448,18 +449,26 @@ Int generateRandomPrivateKey(Int minKey, Int range, Xoshiro256plus &rng) {
 }
 
 Int minKey, maxKey;
-
+	int maxt = 1; //Declare the max threads allowed. Minimum is one. Range checked for 0 and true max detected at parameters passed -dev_nullish
 int main(int argc, char *argv[]) {
     bool hash160Provided = false, rangeProvided = false, puzzleProvided = false;
     bool randomMode = false; // Default to sequential mode
     std::string targetHash160Hex;
     std::vector<uint8_t> targetHash160;
     int puzzle = 0; // Declare puzzle variable
+	int maxt = 1; //Declare the max threads allowed. Minimum is one. Range checked at parameters passed. Should never be 0. -dev_nullish
     std::string rangeStartHex, rangeEndHex;
-
     // Parse command-line arguments
-    for (int i = 1; i < argc; i++) {
-        if (!std::strcmp(argv[i], "-h") && i + 1 < argc) { // Use -h for hash160_hex
+	int numCPUs = omp_get_num_procs(); // Removed const since the number of threads/cpus can vary from max collected here by omp_get_num_procs() - dev_nullish
+	for (int i = 1; i < argc; i++) {
+	if (!std::strcmp(argv[i], "-t") && i + 1 < argc) {
+            maxt = std::stoi(argv[++i]);
+// Range check for the number of threads versus maximum, non zero and up to equal of total threads possible discovered by numCPUs - dev_nullish
+            if (((maxt > numCPUs) | (maxt<1))) {
+                std::cerr << "Invalid thread size or be larger than 0. Also check your WSL2 settings for number of threads if using that defined as lower.\n";
+                return 1;
+			}
+		} else if (!std::strcmp(argv[i], "-h") && i + 1 < argc) { // Use -h for hash160_hex
             targetHash160Hex = argv[++i];
             hash160Provided = true;
             // Convert the hex string to a byte array
@@ -498,7 +507,7 @@ int main(int argc, char *argv[]) {
             std::cerr << "Unknown parameter: " << argv[i] << "\n";
             printUsage(argv[0]);
             return 1;
-        }
+		}	
     }
 
     if (!hash160Provided || (!rangeProvided && !puzzleProvided)) {
@@ -571,8 +580,7 @@ int main(int argc, char *argv[]) {
     const std::string rangeSizeHex = bigNumToHex(rangeSize);
 
     const long double totalRangeLD = hexStrToLongDouble(rangeSizeHex);
-
-    const int numCPUs = omp_get_num_procs();
+    
     g_threadPrivateKeys.resize(numCPUs, "0");
 
     auto [chunkSize, remainder] = bigNumDivide(rangeSize, (uint64_t)numCPUs);
@@ -842,7 +850,7 @@ int main(int argc, char *argv[]) {
                                                                                    localHashResults[j], targetHash160.data(), g_prefixLength);
 
                             // Print status block and partial match information
-printStatsBlock(numCPUs, targetHash160Hex, displayRange,
+printStatsBlock(maxt, numCPUs, targetHash160Hex, displayRange,
                 mkeysPerSec, globalComparedCount,
                 globalElapsedTime, puzzle, randomMode, partialMatchInfo);
                         }
@@ -871,7 +879,7 @@ printStatsBlock(numCPUs, targetHash160Hex, displayRange,
                     mkeysPerSec = (double)globalComparedCount / globalElapsedTime / 1e6;
 
                     // Print status block without partial match information
-                    printStatsBlock(numCPUs, targetHash160Hex, displayRange,
+                    printStatsBlock(maxt, numCPUs, targetHash160Hex, displayRange,
                                    mkeysPerSec, globalComparedCount,
                                    globalElapsedTime, puzzle, randomMode);
                     lastStatusTime = now;
