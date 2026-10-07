@@ -6,18 +6,19 @@ Blazing Fast Performance: Cyclone utilizes AVX2 instructions to deliver unmatche
 Accurate Calculations: Cyclone ensures full and correct computation of compressed public keys and hash160, with parallel processing for batches of 8 hashes (AVX2) and 16 hashes (AVX512).
 Linux Compatibility: Cyclone is designed to run seamlessly on Linux systems or Ubuntu Windows WSL 2.
 Probabilistic search: You can add -R
-Sequential search: You can add -b
+Sequential search: You can add -S
 Threads: You can add -t key for starting Cyclone on a few threads, not on total CPU threads.
-
+Partial prefix search for x number of chars of an address use -b
 Cyclone AVX2	Full and correct computation of compressed public keys, computing 8 hash160 per batch
-This version will do 110+ on a Xeon E5-2697 V4
+This version will do 110+ on a Xeon E5-2697 V4, not overclocked.
+
 Solver	Speed (Mkeys/s)	Notes
 Vanity Search	120	No option to select a range of private keys for search.
 Cyclone AVX2	139	Computing 8 hash160 per batch
 NB! The Windows version of Cyclone performs 6–8% slower than the Linux version!
 🔷 Example Output
 Below is an example of Cyclone in action, solving a Satoshi puzzle:
-Convert address to RMD160 and use the -h parameter. Use offline tools like BIT UTILITY.py
+Convert address to RMD160 and use the -h parameter. Use offline tools like BIT-UTILITY.py
 Sequential search
 
 arg@DESKTOP-SDJI9LD:~/Cyclone_-NoMachine1-Cyclone-fork-main$ ./Cyclone -t 16 -h 0c7aaf6caa7e5424b63d317f0f8f1f9fa40d5560 -r 875:6FAC3875
